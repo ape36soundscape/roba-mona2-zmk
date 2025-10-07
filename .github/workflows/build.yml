@@ -29,22 +29,28 @@ jobs:
           west update
           west list
 
-      - name: Resolve ZMK and Zephyr paths
+      - name: Resolve ZMK and Zephyr paths (with fallback)
         run: |
-          ZMK_DIR=$(west list -f '{path}' zmk)
-          ZEPHYR_DIR=$(west list -f '{path}' zephyr)
+          set -e
+          ZMK_DIR="$(west list -f '{path}' zmk || true)"
+          ZEPHYR_DIR="$(west list -f '{path}' zephyr || true)"
 
-          echo "Found ZMK_DIR=${ZMK_DIR}"
-          echo "Found ZEPHYR_DIR=${ZEPHYR_DIR}"
+          echo "west reported ZMK_DIR='${ZMK_DIR}' ZEPHYR_DIR='${ZEPHYR_DIR}'"
 
+          # ---- fallback: zmk/app が無ければ強制 clone ----
+          if [ -z "${ZMK_DIR}" ] || [ ! -d "${ZMK_DIR}/app" ]; then
+            echo "zmk/app not found via west. Forcing clean clone..."
+            rm -rf zmk
+            git clone --depth 1 https://github.com/zmkfirmware/zmk.git zmk
+            ZMK_DIR="${PWD}/zmk"
+          fi
+
+          # 環境変数として後続に渡す
           echo "ZMK_APP=${ZMK_DIR}/app" >> $GITHUB_ENV
           echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
 
-          if [ ! -d "${ZMK_DIR}/app" ]; then
-            echo "zmk/app not found. west list:"
-            west list
-            exit 1
-          fi
+          echo "Resolved ZMK_APP=${ZMK_DIR}/app"
+          [ -d "${ZMK_DIR}/app" ] || (echo "still missing zmk/app"; exit 1)
 
       - name: Build Left Firmware
         run: |
