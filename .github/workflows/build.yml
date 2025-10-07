@@ -28,11 +28,23 @@ jobs:
           west init -l .
           west update
           west list
-          # zmk/app と zephyr の実パスを動的に解決
-          echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
-          echo "ZEPHYR_BASE=$(west list zephyr -f '{path}')" >> $GITHUB_ENV
-          echo "Resolved ZMK_APP=$ZMK_APP"
-          echo "Resolved ZEPHYR_BASE=$ZEPHYR_BASE"
+
+      - name: Resolve ZMK and Zephyr paths
+        run: |
+          ZMK_DIR=$(west list -f '{path}' zmk)
+          ZEPHYR_DIR=$(west list -f '{path}' zephyr)
+
+          echo "Found ZMK_DIR=${ZMK_DIR}"
+          echo "Found ZEPHYR_DIR=${ZEPHYR_DIR}"
+
+          echo "ZMK_APP=${ZMK_DIR}/app" >> $GITHUB_ENV
+          echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
+
+          if [ ! -d "${ZMK_DIR}/app" ]; then
+            echo "zmk/app not found. west list:"
+            west list
+            exit 1
+          fi
 
       - name: Build Left Firmware
         run: |
