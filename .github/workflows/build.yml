@@ -1,4 +1,5 @@
 name: Build ZMK Firmware
+
 on:
   push:
     branches: [ main, master ]
@@ -6,16 +7,24 @@ on:
 
 jobs:
   build:
+    name: Build ZMK Firmware
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Docker Build Environment
+        run: |
+          echo "Starting ZMK build process..."
+          docker --version
+          echo "Pulling latest ZMK build image..."
+          docker pull zmkfirmware/zmk-build:latest
 
       - name: Build Left (Docker)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:stable bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:latest bash -lc '
+            echo "Building LEFT firmware..."
             west init -l .
             west update
             export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
@@ -26,7 +35,8 @@ jobs:
 
       - name: Build Right (Docker)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:stable bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:latest bash -lc '
+            echo "Building RIGHT firmware..."
             west init -l .
             west update
             export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
@@ -35,10 +45,13 @@ jobs:
               -DOVERLAY_CONFIG=config/split_right.conf
           '
 
-      - name: Upload UF2
+      - name: Upload UF2 Files
         uses: actions/upload-artifact@v4
         with:
           name: zmk-uf2
           path: |
             build/left/zephyr/zmk.uf2
             build/right/zephyr/zmk.uf2
+
+      - name: Finish
+        run: echo "✅ ZMK firmware build completed successfully!"
