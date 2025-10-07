@@ -22,11 +22,12 @@ jobs:
             libffi-dev libssl-dev ccache git cmake
           pip3 install west
 
-      - name: Initialize west workspace
+      # ★ ここがポイント：毎回まっさらにして "ローカルmanifest" で初期化
+      - name: Prepare west workspace
         run: |
-          rm -rf app/.west
-          west init -m https://github.com/zmkfirmware/zmk.git app
-          cd app
+          rm -rf app .west
+          git clone --depth 1 https://github.com/zmkfirmware/zmk.git app
+          west init -l app
           west update
           west zephyr-export
 
