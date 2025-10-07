@@ -34,10 +34,9 @@ jobs:
           set -e
           ZMK_DIR="$(west list -f '{path}' zmk || true)"
           ZEPHYR_DIR="$(west list -f '{path}' zephyr || true)"
-
           echo "west reported ZMK_DIR='${ZMK_DIR}' ZEPHYR_DIR='${ZEPHYR_DIR}'"
 
-          # ---- fallback: zmk/app が無ければ強制 clone ----
+          # ---- zmk/app が無ければフォールバック clone ----
           if [ -z "${ZMK_DIR}" ] || [ ! -d "${ZMK_DIR}/app" ]; then
             echo "zmk/app not found via west. Forcing clean clone..."
             rm -rf zmk
@@ -45,12 +44,16 @@ jobs:
             ZMK_DIR="${PWD}/zmk"
           fi
 
-          # 環境変数として後続に渡す
-          echo "ZMK_APP=${ZMK_DIR}/app" >> $GITHUB_ENV
-          echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
+          # ---- Zephyr が見つからない場合は失敗（場所が必須）----
+          if [ -z "${ZEPHYR_DIR}" ] || [ ! -f "${ZEPHYR_DIR}/cmake/app/boilerplate.cmake" ]; then
+            echo "Zephyr not found in west workspace."; west list || true; exit 1
+          fi
 
+          # 後続ステップへ渡す
+          echo "ZMK_APP=${ZMK_DIR}/app"    >> $GITHUB_ENV
+          echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
           echo "Resolved ZMK_APP=${ZMK_DIR}/app"
-          [ -d "${ZMK_DIR}/app" ] || (echo "still missing zmk/app"; exit 1)
+          echo "Resolved ZEPHYR_BASE=${ZEPHYR_DIR}"
 
       - name: Build Left Firmware
         run: |
@@ -58,7 +61,8 @@ jobs:
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr
+            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr \
+            -DZEPHYR_BASE="${ZEPHYR_BASE}"
 
       - name: Build Right Firmware
         run: |
@@ -66,7 +70,8 @@ jobs:
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr
+            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr \
+            -DZEPHYR_BASE="${ZEPHYR_BASE}"
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
