@@ -14,16 +14,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Build Environment
+      - name: Pull latest ZMK Docker image (GitHub Container Registry)
         run: |
-          echo "Starting ZMK build process..."
-          docker --version
-          echo "Pulling latest ZMK build image..."
-          docker pull zmkfirmware/zmk-build:latest
+          echo "Pulling ZMK build environment from ghcr.io..."
+          docker pull ghcr.io/zmkfirmware/zmk-build:latest
 
-      - name: Build Left (Docker)
+      - name: Build Left (ZMK)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:latest bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir ghcr.io/zmkfirmware/zmk-build:latest bash -lc '
             echo "Building LEFT firmware..."
             west init -l .
             west update
@@ -33,9 +31,9 @@ jobs:
               -DOVERLAY_CONFIG=config/split_left.conf
           '
 
-      - name: Build Right (Docker)
+      - name: Build Right (ZMK)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:latest bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir ghcr.io/zmkfirmware/zmk-build:latest bash -lc '
             echo "Building RIGHT firmware..."
             west init -l .
             west update
@@ -53,5 +51,5 @@ jobs:
             build/left/zephyr/zmk.uf2
             build/right/zephyr/zmk.uf2
 
-      - name: Finish
-        run: echo "✅ ZMK firmware build completed successfully!"
+      - name: Done
+        run: echo "✅ Build complete. UF2 ready!"
