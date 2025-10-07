@@ -19,7 +19,7 @@ jobs:
             python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
             python3-dev python3-setuptools python3-wheel xz-utils file \
             libncurses-dev libffi-dev libssl-dev ccache git cmake \
-            gcc-arm-none-eabi libnewlib-arm-none-eabi coreutils
+            gcc-arm-none-eabi libnewlib-arm-none-eabi
           pip3 install west
 
       - name: Prepare west workspace (local manifest)
@@ -29,37 +29,37 @@ jobs:
           west update
           west list
 
-      - name: Resolve ZMK and Zephyr paths (with fallback)
+      - name: Resolve ZMK and Zephyr paths
         run: |
           set -e
-          # west から相対パス取得 → 絶対パスへ
-          ZMK_DIR_REL="$(west list -f '{path}' zmk || true)"
-          ZEPHYR_DIR_REL="$(west list -f '{path}' zephyr || true)"
-          ZMK_DIR="$(realpath -m "${ZMK_DIR_REL:-zmk}")"
-          ZEPHYR_DIR="$(realpath -m "${ZEPHYR_DIR_REL:-zephyr}")"
+          # west から絶対パスを取得（見つからなければ空文字）
+          ZMK_DIR="$(west list -f '{abspath}' zmk || true)"
+          ZEPHYR_DIR="$(west list -f '{abspath}' zephyr || true)"
 
-          echo "west reported  ZMK_DIR_REL='${ZMK_DIR_REL}'  ZEPHYR_DIR_REL='${ZEPHYR_DIR_REL}'"
-          echo "resolved paths ZMK_DIR='${ZMK_DIR}'  ZEPHYR_DIR='${ZEPHYR_DIR}'"
+          # 既定の場所にフォールバック
+          ZMK_DIR="${ZMK_DIR:-${GITHUB_WORKSPACE}/zmk}"
+          ZEPHYR_DIR="${ZEPHYR_DIR:-${GITHUB_WORKSPACE}/zephyr}"
 
-          # zmk/app が無ければフォールバック clone
+          echo "west list (for reference):"
+          west list || true
+          echo "Resolved ZMK_DIR=${ZMK_DIR}"
+          echo "Resolved ZEPHYR_DIR=${ZEPHYR_DIR}"
+
+          # zmk/app が無ければ強制 clone（確実に用意する）
           if [ ! -d "${ZMK_DIR}/app" ]; then
-            echo "zmk/app not found. Forcing clean clone..."
+            echo "zmk/app not found. Cloning zmk..."
             rm -rf "${ZMK_DIR}"
             git clone --depth 1 https://github.com/zmkfirmware/zmk.git "${ZMK_DIR}"
           fi
 
-          # Zephyr ディレクトリが無ければ失敗（一覧を出してヒント）
-          if [ ! -d "${ZEPHYR_DIR}" ]; then
-            echo "Zephyr directory not found in west workspace:"
-            west list || true
-            exit 1
-          fi
-
-          # 後続ステップへ渡す
+          # 後続ステップへ環境変数として渡す（ここで失敗させない）
           echo "ZMK_APP=${ZMK_DIR}/app"    >> $GITHUB_ENV
           echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
           echo "Resolved ZMK_APP=${ZMK_DIR}/app"
           echo "Resolved ZEPHYR_BASE=${ZEPHYR_DIR}"
+
+          # あると便利：エクスポート（失敗しても無視）
+          west zephyr-export || true
 
       - name: Build Left Firmware
         run: |
