@@ -27,13 +27,16 @@ jobs:
           rm -rf .west zephyr modules zmk build
           west init -l .
           west update
-          west zephyr-export
-          echo "---- list projects ----"
           west list
+          # zmk/app と zephyr の実パスを動的に解決
+          echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
+          echo "ZEPHYR_BASE=$(west list zephyr -f '{path}')" >> $GITHUB_ENV
+          echo "Resolved ZMK_APP=$ZMK_APP"
+          echo "Resolved ZEPHYR_BASE=$ZEPHYR_BASE"
 
       - name: Build Left Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/left zmk/app -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/left "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
@@ -41,7 +44,7 @@ jobs:
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/right zmk/app -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/right "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
