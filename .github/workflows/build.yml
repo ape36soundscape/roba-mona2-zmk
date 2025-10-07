@@ -24,6 +24,7 @@ jobs:
 
       - name: Initialize west workspace
         run: |
+          rm -rf app/.west
           west init -m https://github.com/zmkfirmware/zmk.git app
           cd app
           west update
