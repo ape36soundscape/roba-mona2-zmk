@@ -6,6 +6,6 @@ manifest:
     - name: zmk
       remote: zmkfirmware
       revision: main
-      import: app/west.yml   # ← これが Zephyr ほか依存を引っ張るカギ
+      import: app/west.yml
   self:
     path: .
