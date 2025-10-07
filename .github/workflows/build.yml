@@ -7,14 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     name: Build ZMK Firmware
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install dependencies (west / zephyr toolchain)
         run: |
           sudo apt update
           sudo apt install -y python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
@@ -22,27 +22,28 @@ jobs:
             libffi-dev libssl-dev ccache git cmake
           pip3 install west
 
-      # ← ここがポイント：毎回まっさらにしてローカル west.yml を使う
+      # ← 重要：毎回まっさらにして、ルートの west.yml を使って初期化
       - name: Prepare west workspace
         run: |
-          rm -rf .west zephyr modules app build
+          rm -rf .west zephyr modules build zmk
           west init -l .
           west update
           west zephyr-export
 
+      # ZMKのアプリは zmk/app にあるので、"zmk/app" を明示してビルド
       - name: Build Left Firmware
         run: |
-          west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/left zmk/app -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config"
 
       - name: Build Right Firmware
         run: |
-          west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/right zmk/app -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config"
 
-      - name: Upload Artifacts
+      - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zmk-uf2
