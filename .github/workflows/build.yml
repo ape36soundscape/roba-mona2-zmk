@@ -14,34 +14,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Pull latest ZMK Docker image (GitHub Container Registry)
-        run: |
-          echo "Pulling ZMK build environment from ghcr.io..."
-          docker pull ghcr.io/zmkfirmware/zmk-build:latest
+      - name: Build Left Firmware
+        uses: zmkfirmware/zmk-build-action@v1
+        with:
+          board: seeeduino_xiao_nrf52840
+          shield: roba_compat_mona_left
+          extra-cmake-args: '-DOVERLAY_CONFIG=config/split_left.conf'
+          artifact-name: left-firmware
 
-      - name: Build Left (ZMK)
-        run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir ghcr.io/zmkfirmware/zmk-build:latest bash -lc '
-            echo "Building LEFT firmware..."
-            west init -l .
-            west update
-            export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
-            west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
-              -DSHIELD=roba_compat_mona_left \
-              -DOVERLAY_CONFIG=config/split_left.conf
-          '
-
-      - name: Build Right (ZMK)
-        run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir ghcr.io/zmkfirmware/zmk-build:latest bash -lc '
-            echo "Building RIGHT firmware..."
-            west init -l .
-            west update
-            export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
-            west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
-              -DSHIELD=roba_compat_mona_right \
-              -DOVERLAY_CONFIG=config/split_right.conf
-          '
+      - name: Build Right Firmware
+        uses: zmkfirmware/zmk-build-action@v1
+        with:
+          board: seeeduino_xiao_nrf52840
+          shield: roba_compat_mona_right
+          extra-cmake-args: '-DOVERLAY_CONFIG=config/split_right.conf'
+          artifact-name: right-firmware
 
       - name: Upload UF2 Files
         uses: actions/upload-artifact@v4
@@ -50,6 +37,3 @@ jobs:
           path: |
             build/left/zephyr/zmk.uf2
             build/right/zephyr/zmk.uf2
-
-      - name: Done
-        run: echo "✅ Build complete. UF2 ready!"
