@@ -14,34 +14,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (west / zephyr toolchain)
+      - name: Install dependencies (west / Zephyr / GNU ARM)
         run: |
           sudo apt update
-          sudo apt install -y python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
-            python3-dev python3-setuptools python3-tk python3-wheel xz-utils file libncurses-dev \
-            libffi-dev libssl-dev ccache git cmake
+          sudo apt install -y \
+            python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
+            python3-dev python3-setuptools python3-tk python3-wheel xz-utils file \
+            libncurses-dev libffi-dev libssl-dev ccache git cmake \
+            gcc-arm-none-eabi libnewlib-arm-none-eabi
           pip3 install west
 
-      # ← 重要：毎回まっさらにして、ルートの west.yml を使って初期化
-      - name: Prepare west workspace
+      - name: Prepare west workspace (use local west.yml)
         run: |
-          rm -rf .west zephyr modules build zmk
+          rm -rf .west zephyr modules zmk build
           west init -l .
           west update
           west zephyr-export
 
-      # ZMKのアプリは zmk/app にあるので、"zmk/app" を明示してビルド
+      # ← ZMKのアプリは zmk/app。GNU ARM ツールチェーンを明示
       - name: Build Left Firmware
         run: |
           west build -p always -b seeeduino_xiao_nrf52840 -d build/left zmk/app -- \
             -DSHIELD=roba_compat_mona_left \
-            -DZMK_CONFIG="${{ github.workspace }}/config"
+            -DZMK_CONFIG="${{ github.workspace }}/config" \
+            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr
 
       - name: Build Right Firmware
         run: |
           west build -p always -b seeeduino_xiao_nrf52840 -d build/right zmk/app -- \
             -DSHIELD=roba_compat_mona_right \
-            -DZMK_CONFIG="${{ github.workspace }}/config"
+            -DZMK_CONFIG="${{ github.workspace }}/config" \
+            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
