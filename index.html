@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>roBa × moNa2 Compatible Firmware</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="description" content="kumakey さんの roBa と pooh_polo さんの moNa2 をつなぐ、ZMK ベースのカスタムファームウェア。GitHub Actions で UF2 を自動生成。" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <h1>roBa × moNa2<br class="sp"> Compatible Firmware</h1>
+      <p class="lead">ふたつの作品をつなぐ、やさしい ZMK。</p>
+      <a class="cta" href="#getting-started">はじめる</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="concept">
+      <h2>コンセプト</h2>
+      <p>
+        kumakey さんの「roBa」ハードウェアと、pooh_polo さんの「moNa2」ファームウェア。
+        どちらも大切な作品です。このプロジェクトは、その魅力をそっとつなぐカスタム ZMK。
+        見た目（名前）は <strong>moNa2</strong>、中身（配線）は <strong>roBa</strong>。
+        ちょっと実験的ですが、楽しく、やさしく、遊べることを目指しています。
+      </p>
+    </section>
+
+    <section class="features" id="features">
+      <h2>特徴</h2>
+      <div class="grid">
+        <div class="card"><h3>ハード</h3><p>roBa（kumakey）</p></div>
+        <div class="card"><h3>MCU</h3><p>Seeed XIAO nRF52840 ×2（左右）</p></div>
+        <div class="card"><h3>通信</h3><p>BLE スプリット（左＝Central / 右＝Peripheral）</p></div>
+        <div class="card"><h3>センサー</h3><p>PMW3610（右トラックボール）</p></div>
+        <div class="card"><h3>スイッチ</h3><p>Choc V2（ホットスワップ）</p></div>
+        <div class="card"><h3>LED</h3><p>なし（ミニマル）</p></div>
+        <div class="card"><h3>FW</h3><p>ZMK + PMW3610 ドライバ</p></div>
+        <div class="card"><h3>表示名</h3><p>moNa2 / moNa2-P（BLE/USB 名のみ）</p></div>
+      </div>
+    </section>
+
+    <section class="getting-started" id="getting-started">
+      <h2>はじめる（GitHub Actions で UF2 を自動生成）</h2>
+      <ol>
+        <li>このページのソース（ZIP）を GitHub にそのままアップロード（リポジトリを作成）</li>
+        <li>Actions が自動で走り、<strong>left.uf2 / right.uf2</strong> が生成されます</li>
+        <li>Artifacts からダウンロードして、XIAO nRF52840（左右）にコピー</li>
+      </ol>
+      <details>
+        <summary>もう少し詳しく</summary>
+        <pre><code># 例: ZMK を取得し、zmk-config を配置（ローカルビルドの場合）
+west init -m https://github.com/zmkfirmware/zmk zmk
+cd zmk && west update
+cd .. && mv zmk-config ./zmk-config
+
+# 右（Peripheral）
+west build -p -b seeeduino_xiao_nrf52840 build/right --   -DSHIELD=roba_compat_mona_right -DOVERLAY_CONFIG=config/split_right.conf
+
+# 左（Central）
+west build -p -b seeeduino_xiao_nrf52840 build/left --   -DSHIELD=roba_compat_mona_left -DOVERLAY_CONFIG=config/split_left.conf
+</code></pre>
+      </details>
+      <p class="note">※ VID/PID は変更しません。デバイス名のみ「moNa2 / moNa2-P」にしています。</p>
+    </section>
+
+    <section class="gallery">
+      <h2>ギャラリー</h2>
+      <p>画像は <code>assets/</code> に追加してください。GitHub Pages でそのまま表示できます。</p>
+      <div class="thumbs">
+        <!-- ここに画像を追加（例）：
+        <img src="assets/roba.jpg" alt="roBa" />
+        <img src="assets/mona2.jpg" alt="moNa2" />
+        -->
+      </div>
+    </section>
+
+    <section class="credits">
+      <h2>クレジット</h2>
+      <ul>
+        <li>Hardware: roBa by kumakey</li>
+        <li>Firmware Inspiration: moNa2 by pooh_polo</li>
+        <li>PMW3610 Driver: badjeff</li>
+        <li>Firmware Base: ZMK Project</li>
+        <li>Integration: saru (2025)</li>
+      </ul>
+      <p class="disclaimer">本プロジェクトは個人の学習・検証目的です。作者の皆さまへのリスペクトを込めて公開しています。</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2025 roBa × moNa2 Compatible Firmware</p>
+  </footer>
+</body>
+</html>
