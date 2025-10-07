@@ -1,0 +1,42 @@
+name: Build ZMK Firmware
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Left (Docker)
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:3.5 bash -lc '
+            west init -l .
+            west update
+            export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
+            west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
+              -DSHIELD=roba_compat_mona_left \
+              -DOVERLAY_CONFIG=config/split_left.conf
+          '
+
+      - name: Build Right (Docker)
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:3.5 bash -lc '
+            west init -l .
+            west update
+            export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
+            west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
+              -DSHIELD=roba_compat_mona_right \
+              -DOVERLAY_CONFIG=config/split_right.conf
+          '
+
+      - name: Upload UF2
+        uses: actions/upload-artifact@v4
+        with:
+          name: zmk-uf2
+          path: |
+            build/left/zephyr/zmk.uf2
+            build/right/zephyr/zmk.uf2
