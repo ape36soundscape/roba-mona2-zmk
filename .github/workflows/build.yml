@@ -30,11 +30,16 @@ jobs:
           west init -l .
           west update
           west zephyr-export
+          west list
 
-      # ← ZMKのアプリは zmk/app。GNU ARM ツールチェーンを明示
+      - name: Resolve ZMK app path
+        run: |
+          echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
+          echo "Resolved ZMK_APP=$(west list zmk -f '{path}')/app"
+
       - name: Build Left Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/left zmk/app -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/left "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
@@ -42,7 +47,7 @@ jobs:
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/right zmk/app -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/right "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
