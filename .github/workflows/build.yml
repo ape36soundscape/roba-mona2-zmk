@@ -1,45 +1,38 @@
 name: Build ZMK Firmware
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build ZMK Firmware
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (west / Zephyr / GNU ARM)
+      - name: Install Dependencies
         run: |
           sudo apt update
           sudo apt install -y \
             python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
-            python3-dev python3-setuptools python3-tk python3-wheel xz-utils file \
+            python3-dev python3-setuptools python3-wheel xz-utils file \
             libncurses-dev libffi-dev libssl-dev ccache git cmake \
             gcc-arm-none-eabi libnewlib-arm-none-eabi
           pip3 install west
 
-      - name: Prepare west workspace (use local west.yml)
+      - name: Initialize west workspace
         run: |
-          rm -rf .west zephyr modules zmk build
+          rm -rf zmk zephyr modules .west build
           west init -l .
           west update
           west zephyr-export
-          west list
-
-      - name: Resolve ZMK app path
-        run: |
-          echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
-          echo "Resolved ZMK_APP=$(west list zmk -f '{path}')/app"
+          echo "---- ZMK directory structure ----"
+          ls -R zmk || true
 
       - name: Build Left Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/left "$ZMK_APP" -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/left zmk/app -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
@@ -47,7 +40,7 @@ jobs:
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/right "$ZMK_APP" -- \
+          west build -p always -b seeeduino_xiao_nrf52840 -d build/right zmk/app -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
