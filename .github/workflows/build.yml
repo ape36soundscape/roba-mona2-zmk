@@ -24,24 +24,21 @@ jobs:
 
       - name: Initialize west workspace
         run: |
-          west init -l .
+          west init -m https://github.com/zmkfirmware/zmk.git app
+          cd app
           west update
           west zephyr-export
-        env:
-          ZEPHYR_BASE: zephyr
-
-      - name: Pull ZMK upstream
-        run: |
-          git clone https://github.com/zmkfirmware/zmk.git zmk
 
       - name: Build Left Firmware
         run: |
+          cd app
           west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config"
 
       - name: Build Right Firmware
         run: |
+          cd app
           west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config"
@@ -51,5 +48,5 @@ jobs:
         with:
           name: zmk-uf2
           path: |
-            build/left/zephyr/zmk.uf2
-            build/right/zephyr/zmk.uf2
+            app/build/left/zephyr/zmk.uf2
+            app/build/right/zephyr/zmk.uf2
