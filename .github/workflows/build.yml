@@ -15,7 +15,7 @@ jobs:
 
       - name: Build Left (Docker)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:3.5 bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:stable bash -lc '
             west init -l .
             west update
             export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
@@ -26,7 +26,7 @@ jobs:
 
       - name: Build Right (Docker)
         run: |
-          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:3.5 bash -lc '
+          docker run --rm -v "${{ github.workspace }}":/workdir -w /workdir zmkfirmware/zmk-build:stable bash -lc '
             west init -l .
             west update
             export ZEPHYR_EXTRA_MODULES=/workdir/pmw3610-driver
