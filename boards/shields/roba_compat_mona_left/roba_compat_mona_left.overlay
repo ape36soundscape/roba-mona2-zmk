@@ -1,0 +1,21 @@
+/* LEFT (Central) */
+#include "../common/common.keymap"
+
+/ {
+  chosen { zmk,kscan = &kscan0; };
+};
+
+&kscan0 {
+  compatible = "zmk,kscan-gpio-matrix";
+  status = "okay";
+  debounce-press-ms = <5>;
+  debounce-release-ms = <5>;
+  diode-direction = "COL2ROW";
+  row-gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>,
+              <&gpio0 3 GPIO_ACTIVE_HIGH>,
+              <&gpio0 7 GPIO_ACTIVE_HIGH>;
+  col-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>,
+              <&gpio0 13 GPIO_ACTIVE_HIGH>,
+              <&gpio0 14 GPIO_ACTIVE_HIGH>,
+              <&gpio0 15 GPIO_ACTIVE_HIGH>;
+};

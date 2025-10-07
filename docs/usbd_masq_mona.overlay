@@ -1,0 +1,7 @@
+/ { chosen { zephyr,usb-device = &usbd; }; };
+&usbd {
+  status = "okay";
+  product = "moNa2";
+  manufacturer = "kumakey";
+  serial-number = "roba-compat-XXXX";
+};

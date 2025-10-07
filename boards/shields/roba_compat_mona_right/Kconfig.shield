@@ -1,0 +1,3 @@
+config SHIELD_ROBA_COMPAT_MONA_RIGHT
+    bool "roba_compat_mona_right (XIAO nRF52840 Peripheral, PMW3610)"
+    select ZMK_KEYBOARD_LAYER
