@@ -32,38 +32,28 @@ jobs:
       - name: Resolve ZMK and Zephyr paths
         run: |
           set -e
-          # west から絶対パスを取得（見つからなければ空文字）
           ZMK_DIR="$(west list -f '{abspath}' zmk || true)"
           ZEPHYR_DIR="$(west list -f '{abspath}' zephyr || true)"
-
-          # 既定の場所にフォールバック
           ZMK_DIR="${ZMK_DIR:-${GITHUB_WORKSPACE}/zmk}"
           ZEPHYR_DIR="${ZEPHYR_DIR:-${GITHUB_WORKSPACE}/zephyr}"
-
           echo "west list (for reference):"
           west list || true
           echo "Resolved ZMK_DIR=${ZMK_DIR}"
           echo "Resolved ZEPHYR_DIR=${ZEPHYR_DIR}"
-
-          # zmk/app が無ければ強制 clone（確実に用意する）
           if [ ! -d "${ZMK_DIR}/app" ]; then
             echo "zmk/app not found. Cloning zmk..."
             rm -rf "${ZMK_DIR}"
             git clone --depth 1 https://github.com/zmkfirmware/zmk.git "${ZMK_DIR}"
           fi
-
-          # 後続ステップへ環境変数として渡す（ここで失敗させない）
           echo "ZMK_APP=${ZMK_DIR}/app"    >> $GITHUB_ENV
           echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
           echo "Resolved ZMK_APP=${ZMK_DIR}/app"
           echo "Resolved ZEPHYR_BASE=${ZEPHYR_DIR}"
-
-          # あると便利：エクスポート（失敗しても無視）
           west zephyr-export || true
 
       - name: Build Left Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/left "$ZMK_APP" -- \
+          west build -p always -b seeed_xiao_ble -d build/left "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
@@ -72,7 +62,7 @@ jobs:
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b seeeduino_xiao_nrf52840 -d build/right "$ZMK_APP" -- \
+          west build -p always -b seeed_xiao_ble -d build/right "$ZMK_APP" -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
