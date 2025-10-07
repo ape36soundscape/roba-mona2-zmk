@@ -6,12 +6,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    name: Build ZMK Firmware
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install dependencies (west / Zephyr / GNU ARM)
         run: |
           sudo apt update
           sudo apt install -y \
@@ -21,14 +22,14 @@ jobs:
             gcc-arm-none-eabi libnewlib-arm-none-eabi
           pip3 install west
 
-      - name: Initialize west workspace
+      - name: Prepare west workspace (local manifest)
         run: |
-          rm -rf zmk zephyr modules .west build
+          rm -rf .west zephyr modules zmk build
           west init -l .
           west update
           west zephyr-export
-          echo "---- ZMK directory structure ----"
-          ls -R zmk || true
+          echo "---- list projects ----"
+          west list
 
       - name: Build Left Firmware
         run: |
