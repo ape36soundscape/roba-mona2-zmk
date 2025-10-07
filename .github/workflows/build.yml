@@ -7,30 +7,40 @@ on:
 
 jobs:
   build:
-    name: Build ZMK Firmware
     runs-on: ubuntu-latest
+    name: Build ZMK Firmware
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
+            python3-dev python3-setuptools python3-tk python3-wheel xz-utils file libncurses-dev \
+            libffi-dev libssl-dev ccache git cmake
+          pip3 install west
+
+      - name: Initialize west workspace
+        run: |
+          west init -l .
+          west update
+          west zephyr-export
+
       - name: Build Left Firmware
-        uses: zmkfirmware/zmk-build-action@v1
-        with:
-          board: seeeduino_xiao_nrf52840
-          shield: roba_compat_mona_left
-          extra-cmake-args: '-DOVERLAY_CONFIG=config/split_left.conf'
-          artifact-name: left-firmware
+        run: |
+          west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
+            -DSHIELD=roba_compat_mona_left \
+            -DOVERLAY_CONFIG=config/split_left.conf
 
       - name: Build Right Firmware
-        uses: zmkfirmware/zmk-build-action@v1
-        with:
-          board: seeeduino_xiao_nrf52840
-          shield: roba_compat_mona_right
-          extra-cmake-args: '-DOVERLAY_CONFIG=config/split_right.conf'
-          artifact-name: right-firmware
+        run: |
+          west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
+            -DSHIELD=roba_compat_mona_right \
+            -DOVERLAY_CONFIG=config/split_right.conf
 
-      - name: Upload UF2 Files
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zmk-uf2
