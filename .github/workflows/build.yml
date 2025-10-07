@@ -22,25 +22,22 @@ jobs:
             libffi-dev libssl-dev ccache git cmake
           pip3 install west
 
-      # ★ ここがポイント：毎回まっさらにして "ローカルmanifest" で初期化
+      # ← ここがポイント：毎回まっさらにしてローカル west.yml を使う
       - name: Prepare west workspace
         run: |
-          rm -rf app .west
-          git clone --depth 1 https://github.com/zmkfirmware/zmk.git app
-          west init -l app
+          rm -rf .west zephyr modules app build
+          west init -l .
           west update
           west zephyr-export
 
       - name: Build Left Firmware
         run: |
-          cd app
           west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config"
 
       - name: Build Right Firmware
         run: |
-          cd app
           west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config"
@@ -50,5 +47,5 @@ jobs:
         with:
           name: zmk-uf2
           path: |
-            app/build/left/zephyr/zmk.uf2
-            app/build/right/zephyr/zmk.uf2
+            build/left/zephyr/zmk.uf2
+            build/right/zephyr/zmk.uf2
