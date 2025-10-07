@@ -1,7 +1,11 @@
 manifest:
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
   projects:
     - name: zmk
-      url: https://github.com/zmkfirmware/zmk.git
+      remote: zmkfirmware
       revision: main
+      import: app/west.yml   # ← これが Zephyr ほか依存を引っ張るカギ
   self:
     path: .
