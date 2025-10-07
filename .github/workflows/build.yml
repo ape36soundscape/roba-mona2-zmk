@@ -27,18 +27,24 @@ jobs:
           west init -l .
           west update
           west zephyr-export
+        env:
+          ZEPHYR_BASE: zephyr
+
+      - name: Pull ZMK upstream
+        run: |
+          git clone https://github.com/zmkfirmware/zmk.git zmk
 
       - name: Build Left Firmware
         run: |
           west build -p -b seeeduino_xiao_nrf52840 -d build/left -- \
             -DSHIELD=roba_compat_mona_left \
-            -DOVERLAY_CONFIG=config/split_left.conf
+            -DZMK_CONFIG="${{ github.workspace }}/config"
 
       - name: Build Right Firmware
         run: |
           west build -p -b seeeduino_xiao_nrf52840 -d build/right -- \
             -DSHIELD=roba_compat_mona_right \
-            -DOVERLAY_CONFIG=config/split_right.conf
+            -DZMK_CONFIG="${{ github.workspace }}/config"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
