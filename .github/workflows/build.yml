@@ -37,7 +37,6 @@ jobs:
           set -e
           CANDIDATES="seeeduino_xiao_ble seeeduino_xiao_ble_sense nrf52840_dongle"
           FOUND=""
-          touch boards.txt
           cd zmk
           west boards | awk '{print $1}' > ../boards.txt || true
           cd ..
@@ -55,9 +54,13 @@ jobs:
       - name: Build Left Firmware
         run: |
           cd zmk
+          export ZMK_EXTRA_MODULES="${{ github.workspace }}/config"
+          export SHIELD_PATHS="${{ github.workspace }}/config/boards/shields"
+          echo "SHIELD_PATHS=$SHIELD_PATHS"
           west build -p always -b "${BOARD_NAME}" -d build/left app \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
+            -DUSER_SHIELD_DIR="$SHIELD_PATHS" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           cd ..
@@ -65,9 +68,13 @@ jobs:
       - name: Build Right Firmware
         run: |
           cd zmk
+          export ZMK_EXTRA_MODULES="${{ github.workspace }}/config"
+          export SHIELD_PATHS="${{ github.workspace }}/config/boards/shields"
+          echo "SHIELD_PATHS=$SHIELD_PATHS"
           west build -p always -b "${BOARD_NAME}" -d build/right app \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
+            -DUSER_SHIELD_DIR="$SHIELD_PATHS" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           cd ..
