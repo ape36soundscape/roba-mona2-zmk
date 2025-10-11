@@ -21,20 +21,25 @@ jobs:
           python3 -m pip install --upgrade pip
           pip3 install --user west pykwalify pyyaml
 
-      # ZMK の west ワークスペースを作成（アプリは app/ を使う）
+      # --- ZMK west ワークスペースを毎回クリーンに作り直す ---
       - name: Initialize ZMK workspace
         run: |
           set -e
+          # 前回の失敗で残った .west / クローンを掃除
+          rm -rf app
+          # ZMK をマニフェストにして west 初期化
           west init -m https://github.com/zmkfirmware/zmk.git app
           cd app
-          west update
+          # 取得（失敗時は .west を消して再試行）
+          west update --narrow || (rm -rf .west && west init -m https://github.com/zmkfirmware/zmk.git . && west update --narrow)
           west zephyr-export
-          # zephyr/scripts/requirements.txt は無い構成もあるため、あれば入れる
+          # あれば依存を入れる（無ければスキップ）
           pip3 install --user -r zephyr/scripts/requirements.txt || true
+          # 環境変数を後続ステップへ
           echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
-          echo "ZMK_APP=app" >> $GITHUB_ENV
+          echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
 
-      # 使えるボード名から自動で XIAO BLE（nRF52840）を検出。見つからなければ既定に。
+      # Xiao BLE のボード名を自動検出（見つからなければ既定値）
       - name: Detect XIAO BLE board name (auto)
         run: |
           set -e
@@ -44,17 +49,16 @@ jobs:
             if grep -Fx "$B" boards.txt >/dev/null 2>&1; then FOUND="$B"; break; fi
           done
           rm -f boards.txt
-          if [ -z "$FOUND" ]; then
-            FOUND="seeeduino_xiao_ble"
-          fi
+          [ -n "$FOUND" ] || FOUND="seeeduino_xiao_ble"
           echo "Detected BOARD_NAME=$FOUND"
           echo "BOARD_NAME=$FOUND" >> $GITHUB_ENV
 
-      # ★ポイント：SHIELD_ROOT をリポジトリルートにする（boards/shields/** を見つけさせる）
+      # --- ここが本体のビルド。SHIELD_ROOT でリポジトリ直下の boards/shields を見せる ---
       - name: Build Left Firmware
         run: |
+          set -e
           cd app
-          west build -p always -b "${BOARD_NAME}" -d build/left app \
+          west build -p always -b "${BOARD_NAME}" -d build/left "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
@@ -64,8 +68,9 @@ jobs:
 
       - name: Build Right Firmware
         run: |
+          set -e
           cd app
-          west build -p always -b "${BOARD_NAME}" -d build/right app \
+          west build -p always -b "${BOARD_NAME}" -d build/right "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
