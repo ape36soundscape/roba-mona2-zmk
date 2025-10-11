@@ -23,10 +23,11 @@ jobs:
 
       - name: Initialize ZMK workspace
         run: |
-          west init -l app || true
+          # ZMKリポジトリ直下にwest.ymlがある前提で初期化
+          west init -l . || true
           west update
           west zephyr-export
-          pip install -r zmk/zephyr/scripts/requirements.txt || true
+          pip install -r zephyr/scripts/requirements.txt || true
 
       - name: Detect XIAO BLE board name (auto)
         id: detect_board
