@@ -74,7 +74,7 @@ jobs:
           west build -p always -b "${BOARD_NAME}" -d build/left app \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DSHIELD_ROOT="${{ github.workspace }}" \
+            -DSHIELD_ROOT="${{ github.workspace }}/boards/shields" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           echo "✅ Left build OK"
@@ -86,7 +86,7 @@ jobs:
           west build -p always -b "${BOARD_NAME}" -d build/right app \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DSHIELD_ROOT="${{ github.workspace }}" \
+            -DSHIELD_ROOT="${{ github.workspace }}/boards/shields" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           echo "✅ Right build OK"
