@@ -11,47 +11,53 @@ jobs:
         shell: bash
 
     steps:
-      # 1) リポジトリをチェックアウト
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2) Python準備
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3) west 等インストール
       - name: Install west and dependencies
         run: |
           python -m pip install --upgrade pip
           pip install west docopt pyyaml colorama packaging ruamel.yaml click
 
-      # 4) ZMKワークスペース初期化（公式 zmk-config のマニフェストを使用）
-      #    ※ west init に任せるので git clone は使いません（128エラー回避）
-      - name: Initialize ZMK workspace
+      # ← これが肝。checkout の extraheader を完全に外す
+      - name: Clear checkout auth header (allow public clones)
+        run: |
+          git config --local  --unset-all http.https://github.com/.extraheader || true
+          git config --global --unset-all http.https://github.com/.extraheader || true
+          git config --system --unset-all http.https://github.com/.extraheader || true
+          echo "After cleanup:"
+          (git config -l | grep -i extraheader) || echo "no extraheader"
+
+      # リポジトリの外側（RUNNER_TEMP）に ZMK ワークスペースを作る
+      - name: Initialize ZMK workspace (runner temp)
         run: |
           set -euo pipefail
-          rm -rf zmk-workspace || true
-          west init -m https://github.com/zmkfirmware/zmk-config.git zmk-workspace
-          cd zmk-workspace
+          ZMK_WS="${RUNNER_TEMP}/zmk-ws"
+          rm -rf "$ZMK_WS" || true
+          mkdir -p "$ZMK_WS"
+          echo "ZMK_WS=$ZMK_WS" >> $GITHUB_ENV
+
+          cd "$ZMK_WS"
+          west init -m https://github.com/zmkfirmware/zmk-config.git .
           west update
           west zephyr-export
-          # 環境変数を書き出し
-          echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
-          echo "ZMK_APP=$(pwd)/zmk/app" >> $GITHUB_ENV
 
-      # 5) 使用ボード検出（XIAO BLEを既定）
+          echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
+          echo "ZMK_APP=$(pwd)/zmk/app"    >> $GITHUB_ENV
+
       - name: Detect XIAO BLE board name (auto)
         run: |
           echo "BOARD_NAME=seeeduino_xiao_ble" >> $GITHUB_ENV
           echo "Detected BOARD_NAME=seeeduino_xiao_ble"
 
-      # 6) ZMK_CONFIG とユーザーシールドの場所を自動解決
-      #    - config/ があれば優先。なければリポジトリ直下を使います
-      - name: Resolve ZMK_CONFIG and shields path
+      - name: Resolve ZMK_CONFIG and USER_SHIELD_DIR
         run: |
           set -euo pipefail
           if [ -d "${GITHUB_WORKSPACE}/config" ]; then
@@ -63,30 +69,24 @@ jobs:
 
           if [ -d "${ZMK_CONFIG_PATH}/boards/shields" ]; then
             echo "USER_SHIELD_DIR=${ZMK_CONFIG_PATH}/boards/shields" >> $GITHUB_ENV
+          elif [ -d "${GITHUB_WORKSPACE}/boards/shields" ]; then
+            echo "USER_SHIELD_DIR=${GITHUB_WORKSPACE}/boards/shields" >> $GITHUB_ENV
           fi
 
-          echo "Using ZMK_CONFIG=${ZMK_CONFIG_PATH}"
-          if [ -n "${USER_SHIELD_DIR:-}" ]; then
-            echo "Using USER_SHIELD_DIR=${USER_SHIELD_DIR}"
-          else
-            echo "No user shields dir found (optional)"
-          fi
-
-      # 7) 事前表示（バージョンなど）
       - name: Preflight check
         run: |
           cmake --version
           west --version
           python --version
-          echo "ZEPHYR_BASE=$ZEPHYR_BASE"
-          echo "ZMK_APP=$ZMK_APP"
-          echo "BOARD_NAME=$BOARD_NAME"
-          echo "ZMK_CONFIG=$ZMK_CONFIG"
-          [ -n "${USER_SHIELD_DIR:-}" ] && echo "USER_SHIELD_DIR=$USER_SHIELD_DIR"
+          echo "ZMK_WS=${ZMK_WS}"
+          echo "ZEPHYR_BASE=${ZEPHYR_BASE}"
+          echo "ZMK_APP=${ZMK_APP}"
+          echo "BOARD_NAME=${BOARD_NAME}"
+          echo "ZMK_CONFIG=${ZMK_CONFIG}"
+          [ -n "${USER_SHIELD_DIR:-}" ] && echo "USER_SHIELD_DIR=${USER_SHIELD_DIR}" || true
 
-      # 8) 左手ビルド
       - name: Build Left Firmware
-        working-directory: zmk-workspace
+        working-directory: ${{ env.ZMK_WS }}
         run: |
           set -euo pipefail
           EXTRA_OPTS=""
@@ -98,9 +98,8 @@ jobs:
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
 
-      # 9) 右手ビルド
       - name: Build Right Firmware
-        working-directory: zmk-workspace
+        working-directory: ${{ env.ZMK_WS }}
         run: |
           set -euo pipefail
           EXTRA_OPTS=""
@@ -112,11 +111,10 @@ jobs:
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
 
-      # 10) 生成UF2のアップロード
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zmk-uf2
           path: |
-            zmk-workspace/build/left/zephyr/*.uf2
-            zmk-workspace/build/right/zephyr/*.uf2
+            ${{ env.ZMK_WS }}/build/left/zephyr/*.uf2
+            ${{ env.ZMK_WS }}/build/right/zephyr/*.uf2
