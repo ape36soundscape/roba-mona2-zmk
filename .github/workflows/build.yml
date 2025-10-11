@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Guaranteed Local Init)
+name: Build ZMK Firmware (Manifest Fix)
 
 on:
   workflow_dispatch:
@@ -23,28 +23,27 @@ jobs:
           pip3 install --user west pykwalify pyyaml docopt colorama ruamel.yaml python-dateutil
           echo "✅ Installed west and deps"
 
-      # ---- west init を確実に通すローカルモード ----
-      - name: Initialize ZMK workspace (Local Fallback)
+      - name: Initialize ZMK workspace (Manifest-aware Local)
         run: |
           set -e
-          echo "::group::Clone ZMK locally"
-          rm -rf app zmk || true
+          echo "::group::Clone ZMK repo"
+          rm -rf zmk app || true
           git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
           echo "::endgroup::"
 
-          echo "::group::Initialize west locally"
-          # ローカル manifest モードで初期化
-          west init -l zmk
+          echo "::group::Local west init"
+          # manifest ディレクトリを明示して west init
+          west init -l zmk/manifest
           west update
           echo "::endgroup::"
 
-          echo "::group::Export env"
+          echo "::group::Setup environment"
           west zephyr-export
           pip3 install --user -r zmk/zephyr/scripts/requirements.txt || true
           echo "ZEPHYR_BASE=$(pwd)/zmk/zephyr" >> $GITHUB_ENV
           echo "ZMK_APP=$(pwd)/zmk/app" >> $GITHUB_ENV
           echo "::endgroup::"
-          echo "✅ Local west init success"
+          echo "✅ ZMK initialized successfully"
 
       - name: Detect XIAO BLE board name (auto)
         run: |
