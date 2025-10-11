@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Full Safe Build)
+name: Build ZMK Firmware (roBa mona2 compatible)
 
 on:
   workflow_dispatch:
@@ -11,53 +11,56 @@ jobs:
         shell: bash
 
     steps:
+      # 1️⃣ GitHubリポジトリをチェックアウト
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python
+      # 2️⃣ Python & west インストール
+      - name: Setup Python and west
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-
-      - name: Install west and dependencies
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install west docopt pyyaml colorama packaging ruamel.yaml click
 
-      # ← これが肝。checkout の extraheader を完全に外す
-      - name: Clear checkout auth header (allow public clones)
+      # 3️⃣ checkoutが残すextraheaderを削除（Git認証問題回避）
+      - name: Clear checkout auth headers
         run: |
           git config --local  --unset-all http.https://github.com/.extraheader || true
           git config --global --unset-all http.https://github.com/.extraheader || true
           git config --system --unset-all http.https://github.com/.extraheader || true
-          echo "After cleanup:"
-          (git config -l | grep -i extraheader) || echo "no extraheader"
+          echo "✔ extraheader cleared"
 
-      # リポジトリの外側（RUNNER_TEMP）に ZMK ワークスペースを作る
-      - name: Initialize ZMK workspace (runner temp)
+      # 4️⃣ ZMKワークスペース作成（RUNNER_TEMP使用で安全）
+      - name: Initialize ZMK workspace
         run: |
           set -euo pipefail
           ZMK_WS="${RUNNER_TEMP}/zmk-ws"
           rm -rf "$ZMK_WS" || true
           mkdir -p "$ZMK_WS"
-          echo "ZMK_WS=$ZMK_WS" >> $GITHUB_ENV
-
           cd "$ZMK_WS"
+
+          echo "📦 Initializing ZMK workspace..."
           west init -m https://github.com/zmkfirmware/zmk-config.git .
           west update
           west zephyr-export
 
           echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
-          echo "ZMK_APP=$(pwd)/zmk/app"    >> $GITHUB_ENV
+          echo "ZMK_APP=$(pwd)/zmk/app" >> $GITHUB_ENV
+          echo "ZMK_WS=$ZMK_WS" >> $GITHUB_ENV
+          echo "✔ ZMK workspace ready"
 
-      - name: Detect XIAO BLE board name (auto)
+      # 5️⃣ Board設定（XIAO BLE）
+      - name: Detect board
         run: |
           echo "BOARD_NAME=seeeduino_xiao_ble" >> $GITHUB_ENV
           echo "Detected BOARD_NAME=seeeduino_xiao_ble"
 
-      - name: Resolve ZMK_CONFIG and USER_SHIELD_DIR
+      # 6️⃣ ZMK_CONFIG と Shield パスの指定
+      - name: Configure ZMK paths
         run: |
           set -euo pipefail
           if [ -d "${GITHUB_WORKSPACE}/config" ]; then
@@ -73,18 +76,18 @@ jobs:
             echo "USER_SHIELD_DIR=${GITHUB_WORKSPACE}/boards/shields" >> $GITHUB_ENV
           fi
 
+      # 7️⃣ 環境の事前チェック
       - name: Preflight check
         run: |
           cmake --version
           west --version
-          python --version
-          echo "ZMK_WS=${ZMK_WS}"
           echo "ZEPHYR_BASE=${ZEPHYR_BASE}"
           echo "ZMK_APP=${ZMK_APP}"
-          echo "BOARD_NAME=${BOARD_NAME}"
           echo "ZMK_CONFIG=${ZMK_CONFIG}"
-          [ -n "${USER_SHIELD_DIR:-}" ] && echo "USER_SHIELD_DIR=${USER_SHIELD_DIR}" || true
+          echo "BOARD_NAME=${BOARD_NAME}"
+          echo "USER_SHIELD_DIR=${USER_SHIELD_DIR:-none}"
 
+      # 8️⃣ 左手ビルド
       - name: Build Left Firmware
         working-directory: ${{ env.ZMK_WS }}
         run: |
@@ -98,6 +101,7 @@ jobs:
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
 
+      # 9️⃣ 右手ビルド
       - name: Build Right Firmware
         working-directory: ${{ env.ZMK_WS }}
         run: |
@@ -111,6 +115,7 @@ jobs:
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
 
+      # 🔟 成果物アップロード（UF2両手分）
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
         with:
