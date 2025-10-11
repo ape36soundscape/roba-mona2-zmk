@@ -23,7 +23,6 @@ jobs:
 
       - name: Initialize ZMK workspace
         run: |
-          # ZMK本体をクローン（必要なら最新版取得）
           git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
           cd zmk
           west init -l app || true
@@ -39,7 +38,9 @@ jobs:
           CANDIDATES="seeeduino_xiao_ble seeeduino_xiao_ble_sense nrf52840_dongle"
           FOUND=""
           touch boards.txt
-          west boards | awk '{print $1}' > boards.txt || true
+          cd zmk
+          west boards | awk '{print $1}' > ../boards.txt || true
+          cd ..
           for B in $CANDIDATES; do
             if grep -Fx "$B" boards.txt >/dev/null 2>&1; then FOUND="$B"; break; fi
           done
@@ -53,26 +54,28 @@ jobs:
 
       - name: Build Left Firmware
         run: |
-          west build -p always -b "${BOARD_NAME}" -d build/left zmk/app \
+          cd zmk
+          west build -p always -b "${BOARD_NAME}" -d build/left app \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
-            -DZEHPYR_BASE="${ZEPHYR_BASE}"
+            -DGNUARMEMB_TOOLCHAIN_PATH=/usr
+          cd ..
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b "${BOARD_NAME}" -d build/right zmk/app \
+          cd zmk
+          west build -p always -b "${BOARD_NAME}" -d build/right app \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
-            -DZEHPYR_BASE="${ZEPHYR_BASE}"
+            -DGNUARMEMB_TOOLCHAIN_PATH=/usr
+          cd ..
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: zmk-uf2
           path: |
-            build/left/zephyr/zmk.uf2
-            build/right/zephyr/zmk.uf2
+            zmk/build/left/zephyr/zmk.uf2
+            zmk/build/right/zephyr/zmk.uf2
