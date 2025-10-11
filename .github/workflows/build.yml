@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Full Safe Build)
+name: Build ZMK Firmware (Debug Friendly)
 
 on:
   workflow_dispatch:
@@ -18,31 +18,41 @@ jobs:
 
       - name: Install west and dependencies
         run: |
+          set -e
           python3 -m pip install --upgrade pip
           pip3 install --user west pykwalify pyyaml
+          echo "✅ pip/west installed" >> $GITHUB_STEP_SUMMARY
 
-      # --- ZMK west ワークスペースを毎回クリーンに作り直す ---
+      # ---- 毎回クリーンに ZMK ワークスペースを作り直す（進捗をグルーピング表示）----
       - name: Initialize ZMK workspace
         run: |
           set -e
-          # 前回の失敗で残った .west / クローンを掃除
+          echo "::group::Clean & west init"
           rm -rf app
-          # ZMK をマニフェストにして west 初期化
           west init -m https://github.com/zmkfirmware/zmk.git app
           cd app
-          # 取得（失敗時は .west を消して再試行）
+          echo "::endgroup::"
+
+          echo "::group::west update"
           west update --narrow || (rm -rf .west && west init -m https://github.com/zmkfirmware/zmk.git . && west update --narrow)
+          echo "::endgroup::"
+
+          echo "::group::zephyr-export & requirements"
           west zephyr-export
-          # あれば依存を入れる（無ければスキップ）
           pip3 install --user -r zephyr/scripts/requirements.txt || true
-          # 環境変数を後続ステップへ
+          echo "::endgroup::"
+
+          # 環境共有
           echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
           echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
 
-      # Xiao BLE のボード名を自動検出（見つからなければ既定値）
+          # サマリ
+          echo "✅ west init/update OK" >> $GITHUB_STEP_SUMMARY
+
       - name: Detect XIAO BLE board name (auto)
         run: |
           set -e
+          echo "::group::Detect board"
           west boards | awk '{print $1}' > boards.txt || true
           FOUND=""
           for B in seeeduino_xiao_ble xiao_ble seeed_xiao_ble seeeduino_xiao_nrf52840; do
@@ -50,33 +60,53 @@ jobs:
           done
           rm -f boards.txt
           [ -n "$FOUND" ] || FOUND="seeeduino_xiao_ble"
-          echo "Detected BOARD_NAME=$FOUND"
-          echo "BOARD_NAME=$FOUND" >> $GITHUB_ENV
+          echo "BOARD_NAME=$FOUND" | tee -a $GITHUB_ENV
+          echo "::endgroup::"
 
-      # --- ここが本体のビルド。SHIELD_ROOT でリポジトリ直下の boards/shields を見せる ---
+          echo "🧭 Detected BOARD=$FOUND" >> $GITHUB_STEP_SUMMARY
+
+      - name: Preflight check (paths & shields)
+        run: |
+          set -e
+          echo "::group::Echo env"
+          echo "ZEPHYR_BASE=$ZEPHYR_BASE"
+          echo "ZMK_APP=$ZMK_APP"
+          [ -d "$ZMK_APP" ] || (echo "ZMK_APP not found"; exit 1)
+          echo "::endgroup::"
+
+          echo "::group::List shields in repo (boards/shields)"
+          find "${{ github.workspace }}/boards/shields" -maxdepth 2 -type f -name 'Kconfig.shield' -print || true
+          echo "::endgroup::"
+
+          echo "🔎 SHIELD_ROOT will be ${{ github.workspace }}" >> $GITHUB_STEP_SUMMARY
+
       - name: Build Left Firmware
         run: |
           set -e
           cd app
+          echo "::group::west build (left)"
           west build -p always -b "${BOARD_NAME}" -d build/left "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
-          cd ..
+          echo "::endgroup::"
+          echo "✅ Left built" >> $GITHUB_STEP_SUMMARY
 
       - name: Build Right Firmware
         run: |
           set -e
           cd app
+          echo "::group::west build (right)"
           west build -p always -b "${BOARD_NAME}" -d build/right "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
-          cd ..
+          echo "::endgroup::"
+          echo "✅ Right built" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
