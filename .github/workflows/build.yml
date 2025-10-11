@@ -10,8 +10,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -25,10 +23,14 @@ jobs:
 
       - name: Initialize ZMK workspace
         run: |
-          west init -l config || true
+          # ZMK本体をクローン（必要なら最新版取得）
+          git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
+          cd zmk
+          west init -l app || true
           west update
           west zephyr-export
-          pip install -r zmk/zephyr/scripts/requirements.txt || true
+          pip install -r zephyr/scripts/requirements.txt || true
+          cd ..
 
       - name: Detect XIAO BLE board name (auto)
         id: detect_board
