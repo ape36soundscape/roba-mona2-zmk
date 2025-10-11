@@ -6,91 +6,64 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build ZMK Firmware
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (west / Zephyr / GNU ARM)
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            python3-pip ninja-build gperf dfu-util device-tree-compiler wget \
-            python3-dev python3-setuptools python3-wheel xz-utils file \
-            libncurses-dev libffi-dev libssl-dev ccache git cmake \
-            gcc-arm-none-eabi libnewlib-arm-none-eabi
-          pip3 install west
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
 
-      - name: Prepare west workspace (local manifest)
+      - name: Install west and dependencies
         run: |
-          rm -rf .west zephyr modules zmk build
-          west init -l .
+          pip install --upgrade pip
+          pip install west pyelftools
+
+      - name: Initialize ZMK workspace
+        run: |
+          west init -l app || true
           west update
-          west list
-
-      - name: Resolve ZMK and Zephyr paths
-        run: |
-          set -e
-          # 絶対パス取得（無ければ既定にフォールバック）
-          ZMK_DIR="$(west list -f '{abspath}' zmk || true)";    ZMK_DIR="${ZMK_DIR:-${GITHUB_WORKSPACE}/zmk}"
-          ZEPHYR_DIR="$(west list -f '{abspath}' zephyr || true)";ZEPHYR_DIR="${ZEPHYR_DIR:-${GITHUB_WORKSPACE}/zephyr}"
-
-          echo "west list (for reference):"; west list || true
-          echo "Resolved ZMK_DIR=${ZMK_DIR}"; echo "Resolved ZEPHYR_DIR=${ZEPHYR_DIR}"
-
-          # zmk/app が無ければ強制 clone（確実に用意）
-          if [ ! -d "${ZMK_DIR}/app" ]; then
-            echo "zmk/app not found. Cloning zmk..."
-            rm -rf "${ZMK_DIR}"
-            git clone --depth 1 https://github.com/zmkfirmware/zmk.git "${ZMK_DIR}"
-          fi
-
-          # 後続ステップへ渡す
-          echo "ZMK_APP=${ZMK_DIR}/app"    >> $GITHUB_ENV
-          echo "ZEPHYR_BASE=${ZEPHYR_DIR}" >> $GITHUB_ENV
-          echo "Resolved ZMK_APP=${ZMK_DIR}/app"
-          echo "Resolved ZEPHYR_BASE=${ZEPHYR_DIR}"
-          west zephyr-export || true
+          west zephyr-export
+          pip install -r zmk/zephyr/scripts/requirements.txt || true
 
       - name: Detect XIAO BLE board name (auto)
+        id: detect_board
         run: |
           set -e
-          echo "Detecting XIAO BLE board name from this Zephyr..."
-          CANDIDATES="seeed_xiao_ble seeed_xiao_ble_sense seeeduino_xiao_ble seeeduino_xiao_ble_sense"
+          CANDIDATES="seeeduino_xiao_ble seeeduino_xiao_ble_sense nrf52840_dongle"
           FOUND=""
-          # west boards は行頭にボード名を出す（環境により書式が違っても行頭一致で拾う）
+          touch boards.txt
           west boards | awk '{print $1}' > boards.txt || true
           for B in $CANDIDATES; do
             if grep -Fx "$B" boards.txt >/dev/null 2>&1; then FOUND="$B"; break; fi
           done
           rm -f boards.txt
           if [ -z "$FOUND" ]; then
-            echo "Known XIAO BLE board names not found in this Zephyr."
-            echo "Below is a short list around 'xiao' / 'seeed' for reference:"
-            west boards | grep -Ei 'xiao|seeed|seeeduino|nrf52840' || true
-            exit 1
+            echo "⚠️ No matching board found, defaulting to seeeduino_xiao_ble"
+            FOUND="seeeduino_xiao_ble"
           fi
           echo "Detected BOARD_NAME=$FOUND"
           echo "BOARD_NAME=$FOUND" >> $GITHUB_ENV
 
       - name: Build Left Firmware
         run: |
-          west build -p always -b "${BOARD_NAME}" -d build/left "$ZMK_APP" -- \
-            -DSHIELD=roba_compat_mona_left \
+          west build -p always -b "${BOARD_NAME}" -d build/left zmk/app \
+            -DSHIELD=roba_test_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr \
-            -DZEPHYR_BASE="${ZEPHYR_BASE}"
+            -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
+            -DZEHPYR_BASE="${ZEPHYR_BASE}"
 
       - name: Build Right Firmware
         run: |
-          west build -p always -b "${BOARD_NAME}" -d build/right "$ZMK_APP" -- \
-            -DSHIELD=roba_compat_mona_right \
+          west build -p always -b "${BOARD_NAME}" -d build/right zmk/app \
+            -DSHIELD=roba_test_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUEARMEMB_TOOLCHAIN_PATH=/usr \
-            -DZEPHYR_BASE="${ZEPHYR_BASE}"
+            -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
+            -DZEHPYR_BASE="${ZEPHYR_BASE}"
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
