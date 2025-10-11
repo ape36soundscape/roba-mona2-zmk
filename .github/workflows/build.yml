@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Ultimate Fix)
+name: Build ZMK Firmware (Manifest Fix 2025)
 
 on:
   workflow_dispatch:
@@ -27,14 +27,14 @@ jobs:
         run: |
           set -e
           echo "::group::Clone official manifests"
-          rm -rf zmk-config zmk || true
+          rm -rf zmk-config zmk zmk-workspace || true
           git clone --depth=1 https://github.com/zmkfirmware/zmk-config.git zmk-config
           git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
           echo "::endgroup::"
 
           echo "::group::Initialize west"
-          west init -m https://github.com/zmkfirmware/zmk-config.git
-          cd zmk-config
+          west init -m https://github.com/zmkfirmware/zmk-config.git zmk-workspace
+          cd zmk-workspace
           west update
           echo "::endgroup::"
 
