@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -23,11 +25,10 @@ jobs:
 
       - name: Initialize ZMK workspace
         run: |
-          # ZMKリポジトリ直下にwest.ymlがある前提で初期化
-          west init -l . || true
+          west init -l config || true
           west update
           west zephyr-export
-          pip install -r zephyr/scripts/requirements.txt || true
+          pip install -r zmk/zephyr/scripts/requirements.txt || true
 
       - name: Detect XIAO BLE board name (auto)
         id: detect_board
@@ -51,7 +52,7 @@ jobs:
       - name: Build Left Firmware
         run: |
           west build -p always -b "${BOARD_NAME}" -d build/left zmk/app \
-            -DSHIELD=roba_test_left \
+            -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
@@ -60,7 +61,7 @@ jobs:
       - name: Build Right Firmware
         run: |
           west build -p always -b "${BOARD_NAME}" -d build/right zmk/app \
-            -DSHIELD=roba_test_right \
+            -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr \
