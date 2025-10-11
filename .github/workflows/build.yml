@@ -16,13 +16,12 @@ jobs:
       - name: Fetch Build Keyboards
         uses: actions/checkout@v4
 
-      # 👇 認証ヘッダ削除 (最重要)
-      - name: Clear GitHub authentication headers
+      - name: Remove GitHub Auth Headers (fix 128 error)
         run: |
-          echo "🧹 Clearing GitHub auth headers..."
+          echo "🧹 Removing leftover auth headers..."
           git config --system --unset-all http.https://github.com/.extraheader || true
           git config --global --unset-all http.https://github.com/.extraheader || true
-          git config --local  --unset-all http.https://github.com/.extraheader || true
+          git config --local --unset-all http.https://github.com/.extraheader || true
           echo "✅ Auth headers removed."
 
       - name: Setup Python
