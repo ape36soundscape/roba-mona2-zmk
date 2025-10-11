@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Debug Friendly)
+name: Build ZMK Firmware (Robust)
 
 on:
   workflow_dispatch:
@@ -20,21 +20,44 @@ jobs:
         run: |
           set -e
           python3 -m pip install --upgrade pip
-          pip3 install --user west pykwalify pyyaml
-          echo "✅ pip/west installed" >> $GITHUB_STEP_SUMMARY
+          pip3 install --user west pykwalify pyyaml docopt colorama ruamel.yaml python-dateutil
 
-      # ---- 毎回クリーンに ZMK ワークスペースを作り直す（進捗をグルーピング表示）----
+      # ---- ZMK 初期化（リトライ＋フォールバック）----
       - name: Initialize ZMK workspace
         run: |
           set -e
-          echo "::group::Clean & west init"
-          rm -rf app
-          west init -m https://github.com/zmkfirmware/zmk.git app
-          cd app
+          echo "::group::Clean"
+          rm -rf app zmk ws || true
           echo "::endgroup::"
 
+          echo "::group::west init (remote manifest)"
+          # 最大3回リトライ
+          tries=0
+          until [ $tries -ge 3 ]
+          do
+            rm -rf app || true
+            if west init -m https://github.com/zmkfirmware/zmk.git app; then
+              ok=1; break
+            fi
+            tries=$((tries+1))
+            echo "west init failed ($tries). Cleaning and retrying..."
+            rm -rf app/.west || true
+            sleep 2
+          done
+          echo "::endgroup::"
+
+          if [ "${ok:-0}" != "1" ]; then
+            echo "::group::Fallback: local manifest"
+            # 失敗が続く場合は git clone → local manifest で初期化
+            git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
+            west init -l zmk
+            mv zmk app
+            echo "::endgroup::"
+          fi
+
           echo "::group::west update"
-          west update --narrow || (rm -rf .west && west init -m https://github.com/zmkfirmware/zmk.git . && west update --narrow)
+          cd app
+          west update --narrow || (rm -rf .west && west init -l . && west update --narrow)
           echo "::endgroup::"
 
           echo "::group::zephyr-export & requirements"
@@ -42,17 +65,13 @@ jobs:
           pip3 install --user -r zephyr/scripts/requirements.txt || true
           echo "::endgroup::"
 
-          # 環境共有
+          # Export
           echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
           echo "ZMK_APP=$(west list zmk -f '{path}')/app" >> $GITHUB_ENV
-
-          # サマリ
-          echo "✅ west init/update OK" >> $GITHUB_STEP_SUMMARY
 
       - name: Detect XIAO BLE board name (auto)
         run: |
           set -e
-          echo "::group::Detect board"
           west boards | awk '{print $1}' > boards.txt || true
           FOUND=""
           for B in seeeduino_xiao_ble xiao_ble seeed_xiao_ble seeeduino_xiao_nrf52840; do
@@ -61,52 +80,39 @@ jobs:
           rm -f boards.txt
           [ -n "$FOUND" ] || FOUND="seeeduino_xiao_ble"
           echo "BOARD_NAME=$FOUND" | tee -a $GITHUB_ENV
-          echo "::endgroup::"
+          echo "Detected BOARD: $FOUND"
 
-          echo "🧭 Detected BOARD=$FOUND" >> $GITHUB_STEP_SUMMARY
-
-      - name: Preflight check (paths & shields)
+      - name: Preflight check
         run: |
           set -e
-          echo "::group::Echo env"
           echo "ZEPHYR_BASE=$ZEPHYR_BASE"
           echo "ZMK_APP=$ZMK_APP"
+          [ -d "$ZEPHYR_BASE" ] || (echo "ZEPHYR_BASE not found"; exit 1)
           [ -d "$ZMK_APP" ] || (echo "ZMK_APP not found"; exit 1)
-          echo "::endgroup::"
-
-          echo "::group::List shields in repo (boards/shields)"
-          find "${{ github.workspace }}/boards/shields" -maxdepth 2 -type f -name 'Kconfig.shield' -print || true
-          echo "::endgroup::"
-
-          echo "🔎 SHIELD_ROOT will be ${{ github.workspace }}" >> $GITHUB_STEP_SUMMARY
+          echo "Listing shields under repo:"
+          find "${{ github.workspace }}/boards/shields" -maxdepth 2 -name Kconfig.shield -print || true
 
       - name: Build Left Firmware
         run: |
           set -e
           cd app
-          echo "::group::west build (left)"
           west build -p always -b "${BOARD_NAME}" -d build/left "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
-          echo "::endgroup::"
-          echo "✅ Left built" >> $GITHUB_STEP_SUMMARY
 
       - name: Build Right Firmware
         run: |
           set -e
           cd app
-          echo "::group::west build (right)"
           west build -p always -b "${BOARD_NAME}" -d build/right "$ZMK_APP" \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
             -DSHIELD_ROOT="${{ github.workspace }}" \
             -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
-          echo "::endgroup::"
-          echo "✅ Right built" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
