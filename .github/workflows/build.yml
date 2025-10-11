@@ -1,4 +1,4 @@
-name: Build ZMK Firmware
+name: Build ZMK Firmware (Local Manifest Safe Build)
 
 on:
   workflow_dispatch:
@@ -6,65 +6,68 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        board: [seeeduino_xiao_ble]
-        shield: [roba_compat_mona_left, roba_compat_mona_right]
+    timeout-minutes: 30
 
     steps:
-      - name: Fetch Build Keyboards
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Remove GitHub Auth Headers (fix 128 error)
-        run: |
-          echo "🧹 Removing leftover auth headers..."
-          git config --system --unset-all http.https://github.com/.extraheader || true
-          git config --global --unset-all http.https://github.com/.extraheader || true
-          git config --local --unset-all http.https://github.com/.extraheader || true
-          echo "✅ Auth headers removed."
+        with:
+          submodules: recursive
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.10'
 
       - name: Install west and dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install west docopt pyyaml colorama packaging ruamel.yaml click
+          pip install west docopt pyyaml colorama packaging
 
-      - name: Initialize ZMK workspace
+      - name: Initialize Local ZMK workspace
         run: |
           set -euo pipefail
-          ZMK_WS="${RUNNER_TEMP}/zmk-ws"
-          rm -rf "$ZMK_WS" || true
-          mkdir -p "$ZMK_WS"
-          cd "$ZMK_WS"
+          echo "🧩 Initializing local ZMK workspace..."
+          rm -rf zmk-workspace || true
+          mkdir -p zmk-workspace
+          cd zmk-workspace
 
-          echo "Initializing ZMK workspace..."
-          west init -m https://github.com/zmkfirmware/zmk-config.git .
+          # ローカルZMKを manifest 代わりに使用
+          west init -l ../zmk
           west update
           west zephyr-export
 
-          echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
+          echo "ZEPHYR_BASE=$(pwd)/zmk/zephyr" >> $GITHUB_ENV
           echo "ZMK_APP=$(pwd)/zmk/app" >> $GITHUB_ENV
-          echo "ZMK_WS=$ZMK_WS" >> $GITHUB_ENV
+          echo "ZMK_WS=$(pwd)" >> $GITHUB_ENV
+          echo "✅ Local ZMK manifest initialized."
 
-      - name: Build
-        working-directory: ${{ env.ZMK_WS }}
+      - name: Detect XIAO BLE board (auto)
+        id: detect
         run: |
-          set -euo pipefail
-          west build -p always -b ${{ matrix.board }} -d build/${{ matrix.shield }} $ZMK_APP \
-            -DSHIELD=${{ matrix.shield }} \
-            -DZMK_CONFIG=${GITHUB_WORKSPACE}/config \
-            -DUSER_SHIELD_DIR=${GITHUB_WORKSPACE}/boards/shields \
-            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUARMEMB_TOOLCHAIN_PATH=/usr
+          echo "Detecting Seeeduino XIAO BLE board..."
+          echo "BOARD_NAME=seeeduino_xiao_ble" >> $GITHUB_ENV
+
+      - name: Build Left Firmware
+        run: |
+          set -e
+          echo "🏗️ Building Left Firmware..."
+          west build -p -b ${BOARD_NAME} -d build/left zmk/app \
+            -- -DSHIELD=roba_compat_mona_left \
+               -DZMK_CONFIG=${GITHUB_WORKSPACE}/config
+
+      - name: Build Right Firmware
+        run: |
+          set -e
+          echo "🏗️ Building Right Firmware..."
+          west build -p -b ${BOARD_NAME} -d build/right zmk/app \
+            -- -DSHIELD=roba_compat_mona_right \
+               -DZMK_CONFIG=${GITHUB_WORKSPACE}/config
 
       - name: Upload UF2 Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.shield }}
+          name: zmk-uf2
           path: |
-            ${{ env.ZMK_WS }}/build/${{ matrix.shield }}/zephyr/*.uf2
+            build/left/zephyr/zmk.uf2
+            build/right/zephyr/zmk.uf2
