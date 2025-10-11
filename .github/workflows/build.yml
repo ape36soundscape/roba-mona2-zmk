@@ -1,4 +1,4 @@
-name: Build ZMK Firmware
+name: Build ZMK Firmware (Full Safe Build)
 
 on:
   workflow_dispatch:
@@ -12,70 +12,64 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.10"
 
       - name: Install west and dependencies
         run: |
-          pip install --upgrade pip
-          pip install west pyelftools
+          python3 -m pip install --upgrade pip
+          pip3 install --user west pykwalify pyyaml
 
+      # ZMK の west ワークスペースを作成（アプリは app/ を使う）
       - name: Initialize ZMK workspace
         run: |
-          git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
-          cd zmk
-          west init -l app || true
+          set -e
+          west init -m https://github.com/zmkfirmware/zmk.git app
+          cd app
           west update
           west zephyr-export
-          pip install -r zephyr/scripts/requirements.txt || true
-          cd ..
+          # zephyr/scripts/requirements.txt は無い構成もあるため、あれば入れる
+          pip3 install --user -r zephyr/scripts/requirements.txt || true
+          echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
+          echo "ZMK_APP=app" >> $GITHUB_ENV
 
+      # 使えるボード名から自動で XIAO BLE（nRF52840）を検出。見つからなければ既定に。
       - name: Detect XIAO BLE board name (auto)
-        id: detect_board
         run: |
           set -e
-          CANDIDATES="seeeduino_xiao_ble seeeduino_xiao_ble_sense nrf52840_dongle"
+          west boards | awk '{print $1}' > boards.txt || true
           FOUND=""
-          cd zmk
-          west boards | awk '{print $1}' > ../boards.txt || true
-          cd ..
-          for B in $CANDIDATES; do
+          for B in seeeduino_xiao_ble xiao_ble seeed_xiao_ble seeeduino_xiao_nrf52840; do
             if grep -Fx "$B" boards.txt >/dev/null 2>&1; then FOUND="$B"; break; fi
           done
           rm -f boards.txt
           if [ -z "$FOUND" ]; then
-            echo "⚠️ No matching board found, defaulting to seeeduino_xiao_ble"
             FOUND="seeeduino_xiao_ble"
           fi
           echo "Detected BOARD_NAME=$FOUND"
           echo "BOARD_NAME=$FOUND" >> $GITHUB_ENV
 
+      # ★ポイント：SHIELD_ROOT をリポジトリルートにする（boards/shields/** を見つけさせる）
       - name: Build Left Firmware
         run: |
-          cd zmk
-          export ZMK_EXTRA_MODULES="${{ github.workspace }}/config"
-          export SHIELD_PATHS="${{ github.workspace }}/config/boards/shields"
-          echo "SHIELD_PATHS=$SHIELD_PATHS"
+          cd app
           west build -p always -b "${BOARD_NAME}" -d build/left app \
             -DSHIELD=roba_compat_mona_left \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DUSER_SHIELD_DIR="$SHIELD_PATHS" \
-            -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DSHIELD_ROOT="${{ github.workspace }}" \
+            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           cd ..
 
       - name: Build Right Firmware
         run: |
-          cd zmk
-          export ZMK_EXTRA_MODULES="${{ github.workspace }}/config"
-          export SHIELD_PATHS="${{ github.workspace }}/config/boards/shields"
-          echo "SHIELD_PATHS=$SHIELD_PATHS"
+          cd app
           west build -p always -b "${BOARD_NAME}" -d build/right app \
             -DSHIELD=roba_compat_mona_right \
             -DZMK_CONFIG="${{ github.workspace }}/config" \
-            -DUSER_SHIELD_DIR="$SHIELD_PATHS" \
-            -DZEHPYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DSHIELD_ROOT="${{ github.workspace }}" \
+            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
             -DGNUARMEMB_TOOLCHAIN_PATH=/usr
           cd ..
 
@@ -84,5 +78,5 @@ jobs:
         with:
           name: zmk-uf2
           path: |
-            zmk/build/left/zephyr/zmk.uf2
-            zmk/build/right/zephyr/zmk.uf2
+            app/build/left/zephyr/zmk.uf2
+            app/build/right/zephyr/zmk.uf2
