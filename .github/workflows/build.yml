@@ -1,4 +1,4 @@
-name: Build ZMK Firmware (Manifest Fix)
+name: Build ZMK Firmware (Ultimate Fix)
 
 on:
   workflow_dispatch:
@@ -23,27 +23,28 @@ jobs:
           pip3 install --user west pykwalify pyyaml docopt colorama ruamel.yaml python-dateutil
           echo "✅ Installed west and deps"
 
-      - name: Initialize ZMK workspace (Manifest-aware Local)
+      - name: Initialize ZMK workspace (manifest from zmk-config)
         run: |
           set -e
-          echo "::group::Clone ZMK repo"
-          rm -rf zmk app || true
+          echo "::group::Clone official manifests"
+          rm -rf zmk-config zmk || true
+          git clone --depth=1 https://github.com/zmkfirmware/zmk-config.git zmk-config
           git clone --depth=1 https://github.com/zmkfirmware/zmk.git zmk
           echo "::endgroup::"
 
-          echo "::group::Local west init"
-          # manifest ディレクトリを明示して west init
-          west init -l zmk/manifest
+          echo "::group::Initialize west"
+          west init -m https://github.com/zmkfirmware/zmk-config.git
+          cd zmk-config
           west update
           echo "::endgroup::"
 
-          echo "::group::Setup environment"
+          echo "::group::Set up environment"
           west zephyr-export
-          pip3 install --user -r zmk/zephyr/scripts/requirements.txt || true
-          echo "ZEPHYR_BASE=$(pwd)/zmk/zephyr" >> $GITHUB_ENV
-          echo "ZMK_APP=$(pwd)/zmk/app" >> $GITHUB_ENV
+          pip3 install --user -r ../zmk/zephyr/scripts/requirements.txt || true
+          echo "ZEPHYR_BASE=$(pwd)/zephyr" >> $GITHUB_ENV
+          echo "ZMK_APP=$(pwd)/../zmk/app" >> $GITHUB_ENV
           echo "::endgroup::"
-          echo "✅ ZMK initialized successfully"
+          echo "✅ ZMK + manifest initialized successfully"
 
       - name: Detect XIAO BLE board name (auto)
         run: |
